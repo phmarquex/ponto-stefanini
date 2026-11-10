@@ -41,6 +41,12 @@ def notify(msg):
         subprocess.run(["notify-send", "-u", "critical", "Ponto", msg], check=False)
 
 
+def fail(msg):
+    """Notifica o erro na área de trabalho e encerra com código != 0."""
+    notify(msg)
+    raise SystemExit(1)
+
+
 def visible(pg, sel):
     try:
         return pg.locator(sel).filter(visible=True).count() > 0
@@ -87,7 +93,7 @@ def ensure_login(pg, env):
                 continue
             if visible(pg, "#i0116"):
                 if email_attempts >= 2:
-                    raise SystemExit("Tela de e-mail repetida; veja debug.png. Abortando.")
+                    fail("Tela de e-mail repetida; veja debug.png. Abortando.")
                 email_attempts += 1
                 pg.fill("#i0116", env["PONTO_USER"])
                 pg.click("#idSIButton9")
@@ -95,7 +101,7 @@ def ensure_login(pg, env):
                 continue
             if visible(pg, "#i0118"):
                 # Por segurança a senha NUNCA é enviada automaticamente (evita bloqueio de conta).
-                raise SystemExit("Microsoft pediu senha em vez do Authenticator; veja debug.png. Nada foi enviado.")
+                fail("Microsoft pediu senha em vez do Authenticator; veja debug.png. Nada foi enviado.")
             if visible(pg, "#KmsiCheckboxField, #idBtn_Back"):  # Continuar conectado?
                 if visible(pg, "#KmsiCheckboxField"):
                     pg.check("#KmsiCheckboxField")
@@ -120,7 +126,7 @@ def ensure_login(pg, env):
             continue
         if in_portal(pg):
             return
-    raise SystemExit("Timeout aguardando login/MFA.")
+    fail("Timeout aguardando login/MFA.")
 
 
 LAST_FILE = BASE / "last_punch.txt"
@@ -137,22 +143,23 @@ def recent_punch():
 def bater(pg, force=False):
     """Abre o Relógio de Ponto Virtual e clica em Efetuar Marcação."""
     if recent_punch() and not force:
-        raise SystemExit("Já houve marcação há menos de 30 min. Use --force para marcar mesmo assim.")
+        fail("Já houve marcação há menos de 30 min. Use --force para marcar mesmo assim.")
     pg.mouse.click(475, 510)  # card "Registre aqui" no Mural
     btn = pg.get_by_text("Efetuar Marcação")
     try:
         btn.first.wait_for(state="visible", timeout=15000)
     except Exception:
         pg.screenshot(path=str(BASE / "erro_bater.png"))
-        raise SystemExit("Tela do relógio não abriu; veja erro_bater.png. Nada foi marcado.")
+        fail("Tela do relógio não abriu; veja erro_bater.png. Nada foi marcado.")
     hora = pg.locator("text=/^\\d{1,2}:\\d{2}:\\d{2}$/").first.inner_text()
     btn.first.click()
     pg.wait_for_timeout(4000)
     pg.screenshot(path=str(BASE / "resultado_ponto.png"))
     if not pg.get_by_text("MARCACAO EFETUADA").count():
-        raise SystemExit("Sem confirmação 'MARCACAO EFETUADA'; veja resultado_ponto.png e confira no portal.")
+        fail("Sem confirmação 'MARCACAO EFETUADA'; veja resultado_ponto.png e confira no portal.")
     LAST_FILE.write_text(str(time.time()))
     print(f"MARCAÇÃO EFETUADA às {hora} (horário do servidor).")
+    notify(f"MARCAÇÃO EFETUADA às {hora} (horário do servidor).")
 
 
 def main():

@@ -16,6 +16,13 @@ A sessão fica em `./profile`. Quando expira, o script mostra o número a digita
 no Microsoft Authenticator (terminal, `MFA_NUMBER.txt` e `notify-send`) e espera até 5 min.
 A senha nunca é enviada automaticamente.
 
+## Interface gráfica e instalação (Linux)
+    ./install.sh      # instala em ~/.local/share/ponto + atalho "Ponto" no menu (.desktop)
+    ponto-gui         # ou abra pelo menu de aplicativos
+    ./uninstall.sh    # remove (--purge apaga também sessão e .env)
+
+Requer `python3` com `tkinter`. A interface roda o `ponto.py`, mostra o log e destaca o número do Authenticator.
+
 ## Limitações
 O card "Registre aqui" é clicado por coordenada (475, 510); se o layout mudar, o script falha sem marcar.
 Use apenas na sua própria conta e conforme a política da empresa.

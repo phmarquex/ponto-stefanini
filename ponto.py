@@ -144,8 +144,12 @@ def bater(pg, force=False):
     """Abre o Relógio de Ponto Virtual e clica em Efetuar Marcação."""
     if recent_punch() and not force:
         fail("Já houve marcação há menos de 30 min. Use --force para marcar mesmo assim.")
-    pg.mouse.click(475, 510)  # card "Registre aqui" no Mural
     btn = pg.get_by_text("Efetuar Marcação")
+    link = pg.get_by_text("Relógio de Ponto Virtual").filter(visible=True)
+    if link.count():
+        link.first.click()
+    else:
+        pg.mouse.click(475, 510)  # fallback: card "Registre aqui" no Mural
     try:
         btn.first.wait_for(state="visible", timeout=15000)
     except Exception:
@@ -158,7 +162,6 @@ def bater(pg, force=False):
     if not pg.get_by_text("MARCACAO EFETUADA").count():
         fail("Sem confirmação 'MARCACAO EFETUADA'; veja resultado_ponto.png e confira no portal.")
     LAST_FILE.write_text(str(time.time()))
-    print(f"MARCAÇÃO EFETUADA às {hora} (horário do servidor).")
     notify(f"MARCAÇÃO EFETUADA às {hora} (horário do servidor).")
 
 

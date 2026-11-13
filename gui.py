@@ -11,6 +11,12 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+try:  # bandeja do sistema é opcional
+    import pystray
+    from PIL import Image, ImageDraw
+except Exception:  # pragma: no cover
+    pystray = None
+
 BASE = Path(__file__).resolve().parent
 SCRIPT = BASE / "ponto.py"
 ENV_FILE = BASE / ".env"
@@ -33,8 +39,17 @@ def write_user(user):
     ENV_FILE.chmod(0o600)
 
 
+def make_icon():
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse((4, 4, 60, 60), fill="#2563eb", outline="white", width=3)
+    d.line((32, 32, 32, 14), fill="white", width=4)
+    d.line((32, 32, 46, 38), fill="white", width=4)
+    return img
+
+
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, start_hidden=False):
         super().__init__()
         self.title("Ponto")
         self.geometry("560x520")
@@ -85,10 +100,55 @@ class App(tk.Tk):
         sb.pack(side="right", fill="y")
         self.log.pack(side="left", fill="both", expand=True)
 
+        self.tray = None
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.setup_tray()
+        if start_hidden and self.tray:
+            self.withdraw()
+
         self.refresh_last()
         self.after(100, self.poll)
         if not self.user.get():
             self.status.set("Informe seu usuário (e-mail) e clique em Salvar.")
+
+    # --- bandeja
+    def setup_tray(self):
+        """Bandeja em subprocesso: GTK/AppIndicator precisa da thread principal,
+        que aqui pertence ao tkinter. O subprocesso escreve comandos no stdout."""
+        if pystray is None:
+            return
+        try:
+            self.tray = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--tray"],
+                                         stdout=subprocess.PIPE, text=True)
+        except Exception as e:
+            self.tray = None
+            self.status.set(f"Bandeja indisponível: {e}")
+            return
+        threading.Thread(target=self.tray_reader, args=(self.tray,), daemon=True).start()
+
+    def tray_reader(self, proc):
+        for line in proc.stdout:
+            self.q.put(("ui", line.strip()))
+        if proc.wait() != 0:  # bandeja morreu: não deixe o app invisível
+            self.q.put(("ui", "tray_dead"))
+
+    def on_close(self):
+        if self.tray:
+            self.withdraw()  # continua na bandeja
+        else:
+            self.quit_app()
+
+    def show(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def quit_app(self):
+        if self.proc:
+            self.proc.terminate()
+        if self.tray:
+            self.tray.terminate()
+        self.destroy()
 
     # --- helpers
     def refresh_last(self):
@@ -154,7 +214,18 @@ class App(tk.Tk):
         try:
             while True:
                 kind, val = self.q.get_nowait()
-                if kind == "line":
+                if kind == "ui":
+                    if val == "quit":
+                        self.quit_app()
+                        return
+                    if val == "tray_dead":
+                        self.tray = None
+                        self.show()
+                        continue
+                    self.show()
+                    if val == "bater":
+                        self.run("bater")
+                elif kind == "line":
                     self.append(val)
                     m = MFA_RE.search(val)
                     if m:
@@ -174,5 +245,30 @@ class App(tk.Tk):
         self.after(100, self.poll)
 
 
+def run_tray():
+    """Processo da bandeja: imprime 'show' | 'bater' | 'quit' no stdout."""
+    def send(cmd):
+        print(cmd, flush=True)
+
+    menu = pystray.Menu(
+        pystray.MenuItem("Abrir", lambda *_: send("show"), default=True),
+        pystray.MenuItem("Bater ponto", lambda *_: send("bater")),
+        pystray.MenuItem("Sair", lambda *_: send("quit")),
+    )
+    icon = pystray.Icon("ponto", make_icon(), "Ponto", menu)
+    parent = os.getppid()
+
+    def watch_parent():  # não fica órfã se o app principal morrer
+        while os.getppid() == parent:
+            time.sleep(2)
+        icon.stop()
+
+    threading.Thread(target=watch_parent, daemon=True).start()
+    icon.run()
+
+
 if __name__ == "__main__":
-    App().mainloop()
+    if "--tray" in sys.argv:
+        run_tray()
+        sys.exit(0)
+    App(start_hidden="--minimized" in sys.argv).mainloop()

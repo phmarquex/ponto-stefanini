@@ -4,7 +4,7 @@ set -euo pipefail
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 APP="$DATA/ponto"
 
-rm -f "$HOME/.local/bin/ponto-gui" "$DATA/applications/ponto.desktop" "$DATA/icons/hicolor/scalable/apps/ponto.svg"
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/ponto.desktop" "$HOME/.local/bin/ponto-gui" "$DATA/applications/ponto.desktop" "$DATA/icons/hicolor/scalable/apps/ponto.svg"
 if [ "${1:-}" = "--purge" ]; then
   rm -rf "$APP"
 else

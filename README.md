@@ -21,6 +21,8 @@ A senha nunca é enviada automaticamente.
     ponto-gui         # ou abra pelo menu de aplicativos
     ./uninstall.sh    # remove (--purge apaga também sessão e .env)
 
+O instalador também registra o início automático com a sessão (`~/.config/autostart/ponto.desktop`, abre minimizado na bandeja). Fechar a janela mantém o app na bandeja; use "Sair" no menu do ícone para encerrar. Em GNOME é preciso a extensão AppIndicator para ver o ícone.
+
 Requer `python3` com `tkinter`. A interface roda o `ponto.py`, mostra o log e destaca o número do Authenticator.
 
 ## Limitações
